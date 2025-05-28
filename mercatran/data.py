@@ -1,6 +1,7 @@
 import copy
 import logging
 import os
+import random
 from typing import Callable, Iterator, List, Union
 
 import config
@@ -16,6 +17,7 @@ from text import (
 )
 from tokenizers import Tokenizer, models, pre_tokenizers, trainers
 from torch.utils.data import Dataset
+from tqdm import tqdm
 
 logger = logging.getLogger(__name__)
 
@@ -97,6 +99,50 @@ def sequence_dataset(path, min_seq_len=10):
         }
     )
     return sequences[sequences['name'].apply(len) >= min_seq_len]
+
+
+def sequence_dataset_b(path, min_seq_len=10, sample_prob=0.11):
+    data_files = os.listdir(path)
+    df = pd.concat(
+        [
+            pd.read_parquet(
+                os.path.join(path, file)
+            ) for file in data_files
+        ],
+        ignore_index=True
+    )
+    df['seq_user_id'] = df['user_id'].astype(
+        str) + "_" + df['sequence_id'].astype(str)
+    df["category_name"] = df[config.CATEGORY_NAME_HIERARCHY].bfill(
+        axis=1).iloc[:, 0]
+    df["category_id"] = df[config.CATEGORY_ID_HIERARCHY].bfill(
+        axis=1).iloc[:, 0]
+    df = df.drop(config.CATEGORY_NAME_HIERARCHY +
+                 config.CATEGORY_ID_HIERARCHY, axis=1)
+
+    sequences = df.groupby('seq_user_id', as_index=False).agg(
+        {
+            'name': list,
+            'category_name': list,
+            'brand_name': list,
+            'category_id': list,
+            'brand_id': list,
+            'item_id': list,
+            'event_id': list,
+            'price': list,
+            'item_condition_id': list,
+            'size_id': list,
+            'shipper_id': list,
+            'stime': list
+        }
+    )
+    sequences = sequences[sequences['name'].apply(len) >= min_seq_len].to_dict(orient='index')
+    del df
+    filter_seq = {}
+    for key, value in tqdm(sequences.items(), desc="Filtering sequences"):
+        if random.random() <= sample_prob:  # keep roughly 10% of data
+            filter_seq[key] = value
+    return filter_seq
 
 
 def create_start_token_sequence(tokenizer, batch_size):

@@ -4,6 +4,7 @@ import os.path as osp
 import os
 import pickle
 from argparse import ArgumentParser
+import random
 
 from mercatran.data import sequence_dataset_b
 
@@ -24,6 +25,7 @@ def main(args):
     data_path = args.data_path
     seq_dataset = sequence_dataset_b(path=data_path)
     file_name = osp.join(args.save_path, "b_data.pkl")
+    random.seed(args.seed)
     if not osp.exists(args.save_path):
         os.makedirs(args.save_path)
     with open(file_name, "wb") as f:

@@ -102,6 +102,7 @@ def sequence_dataset(path, min_seq_len=10):
 
 
 def sequence_dataset_b(path, min_seq_len=10, sample_prob=0.11):
+    print("creating df")
     data_files = os.listdir(path)
     df = pd.concat(
         [
@@ -137,11 +138,13 @@ def sequence_dataset_b(path, min_seq_len=10, sample_prob=0.11):
         }
     )
     sequences = sequences[sequences['name'].apply(len) >= min_seq_len].to_dict(orient='index')
+    print("initial dict is created")
     del df
     filter_seq = {}
-    for key, value in tqdm(sequences.items(), desc="Filtering sequences"):
+    for key in tqdm(sequences.keys(), desc="Filtering sequences"):
         if random.random() <= sample_prob:  # keep roughly 10% of data
-            filter_seq[key] = value
+            filter_seq[key] = sequences[key]
+        del sequences[key]
     return filter_seq
 
 

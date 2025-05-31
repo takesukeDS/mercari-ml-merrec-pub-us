@@ -2,6 +2,7 @@ import copy
 import logging
 import os
 import random
+from collections import namedtuple
 from typing import Callable, Iterator, List, Union
 
 import config
@@ -101,51 +102,65 @@ def sequence_dataset(path, min_seq_len=10):
     return sequences[sequences['name'].apply(len) >= min_seq_len]
 
 
-def sequence_dataset_b(path, min_seq_len=10, sample_prob=0.11):
+def sequence_dataset_b(path, min_seq_len=10, sample_prob=0.11, num_df=1):
     print("creating df")
     data_files = os.listdir(path)
-    df = pd.concat(
-        [
-            pd.read_parquet(
-                os.path.join(path, file)
-            ) for file in data_files
-        ],
-        ignore_index=True
-    )
-    df['seq_user_id'] = df['user_id'].astype(
-        str) + "_" + df['sequence_id'].astype(str)
-    df["category_name"] = df[config.CATEGORY_NAME_HIERARCHY].bfill(
-        axis=1).iloc[:, 0]
-    df["category_id"] = df[config.CATEGORY_ID_HIERARCHY].bfill(
-        axis=1).iloc[:, 0]
-    df = df.drop(config.CATEGORY_NAME_HIERARCHY +
-                 config.CATEGORY_ID_HIERARCHY, axis=1)
-
-    sequences = df.groupby('seq_user_id', as_index=False).agg(
-        {
-            'name': list,
-            'category_name': list,
-            'brand_name': list,
-            'category_id': list,
-            'brand_id': list,
-            'item_id': list,
-            'event_id': list,
-            'price': list,
-            'item_condition_id': list,
-            'size_id': list,
-            'shipper_id': list,
-            'stime': list
+    chunk_size = len(data_files) // num_df
+    data_files_chunked = [data_files[i:i + chunk_size] for i in range(0, len(data_files), chunk_size)]
+    result_dict = dict()
+    for chunk in data_files_chunked:
+        print("processing a chunk")
+        df = pd.concat(
+            [
+                pd.read_parquet(
+                    os.path.join(path, file)
+                ) for file in chunk
+            ],
+            ignore_index=True
+        )
+        df['seq_user_id'] = df['user_id'].astype(
+            str) + "_" + df['sequence_id'].astype(str)
+        df["category_name"] = df[config.CATEGORY_NAME_HIERARCHY].bfill(
+            axis=1).iloc[:, 0]
+        df["category_id"] = df[config.CATEGORY_ID_HIERARCHY].bfill(
+            axis=1).iloc[:, 0]
+        df = df.drop(config.CATEGORY_NAME_HIERARCHY +
+                     config.CATEGORY_ID_HIERARCHY, axis=1)
+        agg_func_dict = {
+                'name': list,
+                'category_name': list,
+                'brand_name': list,
+                'category_id': list,
+                'brand_id': list,
+                'item_id': list,
+                'event_id': list,
+                'price': list,
+                'item_condition_id': list,
+                'size_id': list,
+                'shipper_id': list,
+                'stime': list,
+                'sequence_length': 'first'
         }
-    )
-    sequences = sequences[sequences['name'].apply(len) >= min_seq_len].to_dict(orient='index')
-    print("initial dict is created")
-    del df
-    filter_seq = {}
-    for key in tqdm(sequences.keys(), desc="Filtering sequences"):
-        if random.random() <= sample_prob:  # keep roughly 10% of data
-            filter_seq[key] = sequences[key]
-        del sequences[key]
-    return filter_seq
+        sequences = df.groupby('seq_user_id', as_index=False).agg(
+            agg_func_dict
+        )
+        sequences = sequences[sequences['name'].apply(len) >= min_seq_len]
+        print("initial dict is created")
+        del df
+        filter_seq = {}
+        last_row = None
+        for row in tqdm(sequences.itertuples(name='Row'), desc="Filtering sequences"):
+            if last_row is not None and last_row.Index == row.Index:
+                new_record = {key: value + getattr(row, key) for key,value in last_row.items if key != 'sequence_length'}
+                new_record['sequence_length'] = last_row['sequence_length']
+                filter_seq[last_row.Index] = new_record
+                continue
+
+            if random.random() <= sample_prob:  # keep roughly 10% of data
+                last_row = row._asdict()
+                filter_seq[row.Index] = last_row
+        result_dict.update(filter_seq)
+    return result_dict
 
 
 def create_start_token_sequence(tokenizer, batch_size):

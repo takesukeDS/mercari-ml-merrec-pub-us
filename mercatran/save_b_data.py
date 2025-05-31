@@ -18,12 +18,13 @@ def parse_args(description):
     parser.add_argument("--max_len", type=int, default=22)
     parser.add_argument("--min_seq_len", type=int, default=5)
     parser.add_argument("--test_frac", type=int, default=0.3)
+    parser.add_argument("--num_df", type=int, default=1)
     args = parser.parse_args()
     return args
 
 def main(args):
     data_path = args.data_path
-    seq_dataset = sequence_dataset_b(path=data_path)
+    seq_dataset = sequence_dataset_b(path=data_path, num_df=args.num_df)
     file_name = osp.join(args.save_path, "b_data.pkl")
     random.seed(args.seed)
     if not osp.exists(args.save_path):

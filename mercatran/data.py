@@ -149,16 +149,16 @@ def sequence_dataset_b(path, min_seq_len=10, sample_prob=0.11, num_df=1):
         del df
         filter_seq = {}
         last_record = None
-        for row in tqdm(sequences.itertuples(name='Row'), desc="Filtering sequences"):
-            if last_record is not None and last_record["Index"] == row.Index:
+        for row in tqdm(sequences.itertuples(index=False, name='Row'), desc="Filtering sequences"):
+            if last_record is not None and last_record["seq_user_id"] == getattr(row, "seq_user_id"):
                 new_record = {key: value + getattr(row, key) for key,value in last_record.items() if key != 'sequence_length'}
                 new_record['sequence_length'] = last_record['sequence_length']
-                filter_seq[row.Index] = new_record
+                filter_seq[last_record["seq_user_id"]] = new_record
                 continue
 
             if random.random() <= sample_prob:  # keep roughly 10% of data
                 last_record = row._asdict()
-                filter_seq[row.Index] = last_record
+                filter_seq[last_record["seq_user_id"]] = last_record
         result_dict.update(filter_seq)
     return result_dict
 

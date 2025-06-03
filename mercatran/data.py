@@ -108,6 +108,7 @@ def sequence_dataset_b(path, min_seq_len=10, sample_prob=0.11, num_df=1):
     chunk_size = len(data_files) // num_df
     data_files_chunked = [data_files[i:i + chunk_size] for i in range(0, len(data_files), chunk_size)]
     result_dict = dict()
+    incomplete_ids = set()
     for chunk in data_files_chunked:
         print("processing a chunk")
         df = pd.concat(
@@ -126,6 +127,8 @@ def sequence_dataset_b(path, min_seq_len=10, sample_prob=0.11, num_df=1):
             axis=1).iloc[:, 0]
         df = df.drop(config.CATEGORY_NAME_HIERARCHY +
                      config.CATEGORY_ID_HIERARCHY, axis=1)
+        # convert TimeStamp object into string to reduce size
+        df["stime"] = df["stime"].dt.strftime("%Y-%m-%d %H:%M:%S.%f")
         agg_func_dict = {
                 'name': list,
                 'category_name': list,
@@ -148,17 +151,21 @@ def sequence_dataset_b(path, min_seq_len=10, sample_prob=0.11, num_df=1):
         print("initial dict is created")
         del df
         filter_seq = {}
-        last_record = None
         for row in tqdm(sequences.itertuples(index=False, name='Row'), desc="Filtering sequences"):
-            if last_record is not None and last_record["seq_user_id"] == getattr(row, "seq_user_id"):
-                new_record = {key: value + getattr(row, key) for key,value in last_record.items() if key != 'sequence_length'}
-                new_record['sequence_length'] = last_record['sequence_length']
-                filter_seq[last_record["seq_user_id"]] = new_record
+            if getattr(row, "seq_user_id") in incomplete_ids:
+                prev_record = filter_seq[getattr(row, "seq_user_id")]
+                new_record = {key: value + getattr(row, key) for key,value in prev_record.items() if key != 'sequence_length'}
+                new_record['sequence_length'] = prev_record['sequence_length']
+                filter_seq[prev_record["seq_user_id"]] = new_record
+                if new_record['sequence_length'] == len(new_record['name']):
+                    incomplete_ids.remove(new_record["seq_user_id"])
                 continue
 
             if random.random() <= sample_prob:  # keep roughly 10% of data
                 last_record = row._asdict()
                 filter_seq[last_record["seq_user_id"]] = last_record
+                if last_record['sequence_length'] != len(last_record['name']):
+                    incomplete_ids.add(last_record['seq_user_id'])
         result_dict.update(filter_seq)
     return result_dict
 

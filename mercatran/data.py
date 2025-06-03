@@ -108,7 +108,7 @@ def sequence_dataset_b(path, min_seq_len=10, sample_prob=0.11, num_df=1):
     chunk_size = len(data_files) // num_df
     data_files_chunked = [data_files[i:i + chunk_size] for i in range(0, len(data_files), chunk_size)]
     result_dict = dict()
-    incomplete_ids = set()
+    rejected_ids = set()
     for chunk in data_files_chunked:
         print("processing a chunk")
         df = pd.concat(
@@ -152,20 +152,18 @@ def sequence_dataset_b(path, min_seq_len=10, sample_prob=0.11, num_df=1):
         del df
         filter_seq = {}
         for row in tqdm(sequences.itertuples(index=False, name='Row'), desc="Filtering sequences"):
-            if getattr(row, "seq_user_id") in incomplete_ids:
+            if getattr(row, "seq_user_id") in filter_seq:
                 prev_record = filter_seq[getattr(row, "seq_user_id")]
                 new_record = {key: value + getattr(row, key) for key,value in prev_record.items() if key != 'sequence_length'}
                 new_record['sequence_length'] = prev_record['sequence_length']
                 filter_seq[prev_record["seq_user_id"]] = new_record
-                if new_record['sequence_length'] == len(new_record['name']):
-                    incomplete_ids.remove(new_record["seq_user_id"])
                 continue
 
-            if random.random() <= sample_prob:  # keep roughly 10% of data
+            if (getattr(row, "seq_user_id") not in rejected_ids) and random.random() <= sample_prob:  # keep roughly 10% of data
                 last_record = row._asdict()
                 filter_seq[last_record["seq_user_id"]] = last_record
-                if last_record['sequence_length'] != len(last_record['name']):
-                    incomplete_ids.add(last_record['seq_user_id'])
+            else:
+                rejected_ids.add(getattr(row, "seq_user_id"))
         result_dict.update(filter_seq)
     return result_dict
 

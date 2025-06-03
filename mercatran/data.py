@@ -152,11 +152,11 @@ def sequence_dataset_b(path, min_seq_len=10, sample_prob=0.11, num_df=1):
         del df
         filter_seq = {}
         for row in tqdm(sequences.itertuples(index=False, name='Row'), desc="Filtering sequences"):
-            if getattr(row, "seq_user_id") in filter_seq:
-                prev_record = filter_seq[getattr(row, "seq_user_id")]
+            if getattr(row, "seq_user_id") in result_dict:
+                prev_record = result_dict[getattr(row, "seq_user_id")]
                 new_record = {key: value + getattr(row, key) for key,value in prev_record.items() if key != 'sequence_length'}
                 new_record['sequence_length'] = prev_record['sequence_length']
-                filter_seq[prev_record["seq_user_id"]] = new_record
+                result_dict[prev_record["seq_user_id"]] = new_record
                 continue
 
             if (getattr(row, "seq_user_id") not in rejected_ids) and random.random() <= sample_prob:  # keep roughly 10% of data

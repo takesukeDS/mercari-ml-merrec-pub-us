@@ -147,10 +147,9 @@ def sequence_dataset_b(path, min_seq_len=10, sample_prob=0.11, num_df=1):
         sequences = df.groupby('seq_user_id', as_index=False).agg(
             agg_func_dict
         )
-        sequences = sequences[sequences['name'].apply(len) >= min_seq_len]
-        print("initial dict is created")
         del df
         filter_seq = {}
+        print("initial dict for chunk is created")
         for row in tqdm(sequences.itertuples(index=False, name='Row'), desc="Filtering sequences"):
             if getattr(row, "seq_user_id") in result_dict:
                 prev_record = result_dict[getattr(row, "seq_user_id")]
@@ -165,6 +164,10 @@ def sequence_dataset_b(path, min_seq_len=10, sample_prob=0.11, num_df=1):
             else:
                 rejected_ids.add(getattr(row, "seq_user_id"))
         result_dict.update(filter_seq)
+    print("lastly, filtering result_dict with min_seq_len")
+    for key in list(result_dict.keys()):
+        if len(result_dict[key]["name"]) < min_seq_len:
+            del result_dict[key]
     return result_dict
 
 

@@ -121,8 +121,8 @@ def sequence_dataset_b(path, min_seq_len=10, sample_prob=0.11, num_df=1):
         )
         df['seq_user_id'] = df['user_id'].astype(
             str) + "_" + df['sequence_id'].astype(str)
-        df["category_name"] = df[config.CATEGORY_NAME_HIERARCHY].agg('#'.join, axis=1)
-        df["category_id"] = df[config.CATEGORY_ID_HIERARCHY].astype('string').agg('#'.join, axis=1)
+        df["category_name"] = df[config.CATEGORY_NAME_HIERARCHY].astype('string').fillna("").agg('#'.join, axis=1)
+        df["category_id"] = df[config.CATEGORY_ID_HIERARCHY].astype('string').fillna("").agg('#'.join, axis=1)
         df = df.drop(config.CATEGORY_NAME_HIERARCHY +
                      config.CATEGORY_ID_HIERARCHY, axis=1)
         # convert TimeStamp object into string to reduce size

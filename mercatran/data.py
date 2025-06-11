@@ -102,7 +102,7 @@ def sequence_dataset(path, min_seq_len=10):
     return sequences[sequences['name'].apply(len) >= min_seq_len]
 
 
-def sequence_dataset_b(path, min_seq_len=10, sample_prob=0.11, num_df=1):
+def sequence_dataset_b(path, min_seq_len=10, sample_prob=0.11, num_df=1, concat_category=False):
     print("creating df")
     data_files = os.listdir(path)
     chunk_size = len(data_files) // num_df
@@ -121,8 +121,14 @@ def sequence_dataset_b(path, min_seq_len=10, sample_prob=0.11, num_df=1):
         )
         df['seq_user_id'] = df['user_id'].astype(
             str) + "_" + df['sequence_id'].astype(str)
-        df["category_name"] = df[config.CATEGORY_NAME_HIERARCHY].astype('string').fillna("").agg('#'.join, axis=1)
-        df["category_id"] = df[config.CATEGORY_ID_HIERARCHY].astype('string').fillna("").agg('#'.join, axis=1)
+        if concat_category:
+            df["category_name"] = df[config.CATEGORY_NAME_HIERARCHY].astype('string').fillna("").agg('#'.join, axis=1)
+            df["category_id"] = df[config.CATEGORY_ID_HIERARCHY].astype('string').fillna("").agg('#'.join, axis=1)
+        else:
+            df["category_name"] = df[config.CATEGORY_NAME_HIERARCHY].bfill(
+                axis=1).iloc[:, 0]
+            df["category_id"] = df[config.CATEGORY_ID_HIERARCHY].bfill(
+                axis=1).iloc[:, 0]
         df = df.drop(config.CATEGORY_NAME_HIERARCHY +
                      config.CATEGORY_ID_HIERARCHY, axis=1)
         # convert TimeStamp object into string to reduce size

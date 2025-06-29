@@ -102,7 +102,16 @@ def sequence_dataset(path, min_seq_len=10):
     return sequences[sequences['name'].apply(len) >= min_seq_len]
 
 
-def sequence_dataset_b(path, min_seq_len=10, sample_prob=0.11, num_df=1, concat_category=False):
+def sequence_dataset_b(path, min_seq_len=10, sample_prob=0.11, num_df=1,
+                       concat_category=False, include_event_id=False, sort_seq=False):
+    event_id_table = {
+        "item_view": 0,
+        "item_like": 1,
+        "item_add_to_cart_tap": 2,
+        "offer_make": 3,
+        "buy_start": 4,
+        "buy_comp": 5,
+    }
     print("creating df")
     data_files = os.listdir(path)
     chunk_size = len(data_files) // num_df
@@ -131,6 +140,9 @@ def sequence_dataset_b(path, min_seq_len=10, sample_prob=0.11, num_df=1, concat_
                 axis=1).iloc[:, 0]
         df = df.drop(config.CATEGORY_NAME_HIERARCHY +
                      config.CATEGORY_ID_HIERARCHY, axis=1)
+        if include_event_id:
+            # to raise an error if event_type is not in the df, we pass a function instead of the dict
+            df["event_id"] = df["event_type"].map(lambda x: event_id_table[x])
         # convert TimeStamp object into string to reduce size
         df["stime"] = df["stime"].dt.strftime("%Y-%m-%d %H:%M:%S.%f")
         agg_func_dict = {
@@ -148,6 +160,8 @@ def sequence_dataset_b(path, min_seq_len=10, sample_prob=0.11, num_df=1, concat_
                 'stime': list,
                 'sequence_length': 'first'
         }
+        if include_event_id:
+            agg_func_dict['event_id'] = list
         sequences = df.groupby('seq_user_id', as_index=False).agg(
             agg_func_dict
         )
@@ -172,6 +186,14 @@ def sequence_dataset_b(path, min_seq_len=10, sample_prob=0.11, num_df=1, concat_
     for key in list(result_dict.keys()):
         if len(result_dict[key]["name"]) < min_seq_len:
             del result_dict[key]
+            continue
+        if sort_seq:
+            # sort by stime
+            sorted_indices = np.argsort(result_dict[key]["stime"])
+            for k in result_dict[key].keys():
+                if k == "sequence_length":
+                    continue
+                result_dict[key][k] = [result_dict[key][k][i] for i in sorted_indices]
     return result_dict
 
 

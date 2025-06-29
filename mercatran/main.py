@@ -42,6 +42,25 @@ from torch.utils.data import DataLoader
 from tqdm.auto import tqdm
 
 
+class UserEncoderEmbeddings(nn.Module):
+    def __init__(self, padding_idx, use_event_id=False):
+        super(UserEncoderEmbeddings, self).__init__()
+        self.user_embed = UserEmbeddings(
+            vocab_size=config.BPE_VOCAB_LIMIT,
+            d_model=config.D_MODEL,
+            padding_idx=padding_idx,
+            max_norm=config.MAX_NORM,
+            use_event_id=use_event_id,
+        )
+        self.unflatten = nn.Unflatten(0, (config.BATCH_SIZE, -1))
+        self.pos_embed = PositionalEncoding(config.D_MODEL, config.DROPOUT, config.POSITION_MAX_LEN)
+
+    def forward(self, x, event_id=None):
+        x = self.user_embed(x, event_id)
+        x = self.unflatten(x)
+        x = self.pos_embed(x)
+        return x
+
 def main(args):
     model_dir = pathlib.Path(args.save_path)
     model_dir.mkdir(parents=True, exist_ok=True)
@@ -97,17 +116,9 @@ def main(args):
             ),
             config.NUM_STACKS,
         ),
-        nn.Sequential(  # user_encoder_embed
-            UserEmbeddings(
-                vocab_size=config.BPE_VOCAB_LIMIT,
-                d_model=config.D_MODEL,
-                padding_idx=tokenizer.token_to_id(MASK_TOKEN),
-                max_norm=config.MAX_NORM,
-                use_event_id=args.use_event_id,
-            ),
-            nn.Unflatten(0, (config.BATCH_SIZE, -1)),
-            PositionalEncoding(config.D_MODEL, config.DROPOUT,
-                               config.POSITION_MAX_LEN),
+        UserEncoderEmbeddings(
+            padding_idx=tokenizer.token_to_id(MASK_TOKEN),
+            use_event_id=args.use_event_id,
         ),
         Decoder(  # user_decoder
             DecoderLayer(

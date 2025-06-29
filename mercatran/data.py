@@ -142,7 +142,7 @@ def sequence_dataset_b(path, min_seq_len=10, sample_prob=0.11, num_df=1,
                      config.CATEGORY_ID_HIERARCHY, axis=1)
         if include_event_id:
             # to raise an error if event_type is not in the df, we pass a function instead of the dict
-            df["event_id"] = df["event_type"].map(lambda x: event_id_table[x])
+            df["event_id"] = df["event_id"].map(lambda x: event_id_table[x])
         # convert TimeStamp object into string to reduce size
         df["stime"] = df["stime"].dt.strftime("%Y-%m-%d %H:%M:%S.%f")
         agg_func_dict = {

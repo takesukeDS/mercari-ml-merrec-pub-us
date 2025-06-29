@@ -50,7 +50,7 @@ class UserEmbeddings(nn.Module):
                 num_embeddings=vocab_size,
                 embedding_dim=d_model,
                 max_norm=max_norm,
-                padding_idx=padding_idx,
+                padding_idx=100,
             )
 
     def forward(self, x, event_id=None):

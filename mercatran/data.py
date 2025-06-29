@@ -191,7 +191,7 @@ def sequence_dataset_b(path, min_seq_len=10, sample_prob=0.11, num_df=1,
             # sort by stime
             sorted_indices = np.argsort(result_dict[key]["stime"])
             for k in result_dict[key].keys():
-                if k == "sequence_length":
+                if k in ["sequence_length", "seq_user_id"]:
                     continue
                 if len(result_dict[key][k]) != len(sorted_indices):
                     print(result_dict[key])

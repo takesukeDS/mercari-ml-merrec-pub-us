@@ -81,6 +81,7 @@ class Evaluator:
         tokenizer: Tokenizer,
         out_dir: str = None,
         ndcg_rel_option: str = DCGRelOptions.raw_engagement,
+        use_event_id: bool = False,
     ):
         self.batch_size = batch_size
         self.num_eval_seq = num_eval_seq
@@ -94,6 +95,7 @@ class Evaluator:
         self.ndcg_rel_option = ndcg_rel_option
         if not os.path.exists(self.out_dir):
             os.makedirs(self.out_dir)
+        self.use_event_id = use_event_id
 
     def calc_rel(
         self,
@@ -240,9 +242,13 @@ class Evaluator:
             actual_brand = {}
             actual_item = {}
 
-            user, user_mask, _, _, category_id, brand_id, item_id = batch
+            if self.use_event_id:
+                user, user_mask, _, _, category_id, brand_id, item_id, event_id = batch
+            else:
+                user, user_mask, _, _, category_id, brand_id, item_id = batch
+                event_id = None
             user_enc_out = self.model.user_encoder(
-                self.model.user_encoder_embed(user), user_mask.unsqueeze(-2)
+                self.model.user_encoder_embed(user, event_id), user_mask.unsqueeze(-2)
             )
             dec_embed = self.model.user_decoder_embed(
                 create_start_token_sequence(

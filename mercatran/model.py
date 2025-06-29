@@ -102,6 +102,34 @@ class ThreeTower(nn.Module):
         self.item_encoder = item_encoder
         self.item_encoder_embed = item_encoder_embed
 
+    def forward(self, user, user_mask, item, item_mask, item_y, item_mask_y, user_event_id=None):
+        user_enc_out = self.user_encoder(
+            self.user_encoder_embed(user, user_event_id), user_mask)
+        user_dec_out = self.user_decoder(
+            self.user_decoder_embed(item), user_enc_out, user_mask, item_mask
+        )
+        item_enc_out = self.item_encoder(
+            self.item_encoder_embed(item_y), item_mask_y)
+        return user_dec_out, item_enc_out
+
+class ThreeTowerEventId(nn.Module):
+    def __init__(
+        self,
+        user_encoder,
+        user_encoder_embed,
+        user_decoder,
+        user_decoder_embed,
+        item_encoder,
+        item_encoder_embed,
+    ):
+        super(ThreeTowerEventId, self).__init__()
+        self.user_encoder = user_encoder
+        self.user_encoder_embed = user_encoder_embed
+        self.user_decoder = user_decoder
+        self.user_decoder_embed = user_decoder_embed
+        self.item_encoder = item_encoder
+        self.item_encoder_embed = item_encoder_embed
+
     def forward(self, user, user_mask, item, item_mask, item_y, item_mask_y):
         user_enc_out = self.user_encoder(
             self.user_encoder_embed(user), user_mask)

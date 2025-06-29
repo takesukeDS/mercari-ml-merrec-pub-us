@@ -35,7 +35,7 @@ def create_subsequent_mask(batch_size, seq_len):
 
 
 class UserEmbeddings(nn.Module):
-    def __init__(self, vocab_size, d_model, max_norm, padding_idx):
+    def __init__(self, vocab_size, d_model, max_norm, padding_idx, use_event_id=False):
         super(UserEmbeddings, self).__init__()
         self.d_model = d_model
         self.user_embedding_bag = nn.EmbeddingBag(
@@ -44,8 +44,23 @@ class UserEmbeddings(nn.Module):
             max_norm=max_norm,
             padding_idx=padding_idx,
         )
+        self.user_event_id = None
+        if use_event_id:
+            self.user_event_id = nn.Embedding(
+                num_embeddings=vocab_size,
+                embedding_dim=d_model,
+                max_norm=max_norm,
+                padding_idx=padding_idx,
+            )
 
-    def forward(self, x):
+    def forward(self, x, event_id=None):
+        if event_id is not None:
+            if self.user_event_id is None:
+                raise ValueError("Event ID embeddings not initialized.")
+            event_embedding = self.user_event_id(event_id)
+            return (
+                self.user_embedding_bag(x[0], x[1]) * math.sqrt(self.d_model)
+            ) + event_embedding
         return self.user_embedding_bag(x[0], x[1]) * math.sqrt(self.d_model)
 
 

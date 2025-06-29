@@ -4,6 +4,7 @@ import pathlib
 import sys
 from argparse import ArgumentParser
 from functools import partial
+import pandas as pd
 
 import config
 import torch
@@ -14,7 +15,7 @@ from data import (
     collate_batch_item,
     collate_batch_item_val,
     sequence_dataset,
-    train_tokenizer,
+    train_tokenizer, collate_batch_item_wrapper, collate_batch_item_val_wrapper,
 )
 from embed import (
     ItemEmbeddings,
@@ -45,7 +46,10 @@ def main(args):
     model_dir = pathlib.Path(args.save_path)
     model_dir.mkdir(parents=True, exist_ok=True)
     data_path = args.data_path
-    seq_dataset = sequence_dataset(path=data_path)
+    data = pd.read_pickle(data_path)
+    seq_dataset = pd.DataFrame.from_dict(data, orient='index')
+    seq_dataset = seq_dataset[
+        ['seq_user_id', 'name', 'category_name', 'brand_name', 'category_id', 'brand_id', 'item_id', 'event_id']]
     tokenizer = train_tokenizer(df_train=seq_dataset)
     tokenizer.save(os.path.join(args.save_path, args.tokenizer_save_name))
     train_df, test_df = train_test_split(
@@ -53,29 +57,32 @@ def main(args):
     val_df, test_df = train_test_split(
         test_df, test_size=0.5, random_state=args.seed)
 
-    train_dataset = UserItemInteractionDataset(interactions=train_df)
-    val_dataset = UserItemInteractionDataset(interactions=val_df)
-    test_dataset = UserItemInteractionDataset(interactions=test_df)
+    train_dataset = UserItemInteractionDataset(interactions=train_df, return_event_id=args.use_event_id)
+    val_dataset = UserItemInteractionDataset(interactions=val_df, return_event_id=args.use_event_id)
+    test_dataset = UserItemInteractionDataset(interactions=test_df, return_event_id=args.use_event_id)
 
     train_loader = DataLoader(
         train_dataset,
         batch_size=config.BATCH_SIZE,
         shuffle=True,
-        collate_fn=partial(collate_batch_item, tokenizer=tokenizer),
+        collate_fn=partial(collate_batch_item_wrapper if args.use_event_id else collate_batch_item,
+                           tokenizer=tokenizer),
         drop_last=True,
     )
     val_loader = DataLoader(
         val_dataset,
         batch_size=config.BATCH_SIZE,
         shuffle=False,
-        collate_fn=partial(collate_batch_item_val, tokenizer=tokenizer),
+        collate_fn=partial(collate_batch_item_val_wrapper if args.use_event_id else collate_batch_item_val,
+                           tokenizer=tokenizer),
         drop_last=True,
     )
     test_loader = DataLoader(
         test_dataset,
         batch_size=config.BATCH_SIZE,
         shuffle=False,
-        collate_fn=partial(collate_batch_item_val, tokenizer=tokenizer),
+        collate_fn=partial(collate_batch_item_val_wrapper if args.use_event_id else collate_batch_item_val,
+                           tokenizer=tokenizer),
         drop_last=True,
     )
 
@@ -96,6 +103,7 @@ def main(args):
                 d_model=config.D_MODEL,
                 padding_idx=tokenizer.token_to_id(MASK_TOKEN),
                 max_norm=config.MAX_NORM,
+                use_event_id=args.use_event_id,
             ),
             nn.Unflatten(0, (config.BATCH_SIZE, -1)),
             PositionalEncoding(config.D_MODEL, config.DROPOUT,
@@ -171,7 +179,12 @@ def main(args):
         for i, batch in enumerate(
             tqdm(train_loader, desc=f"Epoch[{epoch}] Training batch")
         ):
-            user, user_mask, item, item_mask, item_y, item_mask_y = batch
+            if args.use_event_id:
+                # If using event_id, the batch will have an additional element
+                user, user_mask, item, item_mask, item_y, item_mask_y, event_id = batch
+            else:
+                user, user_mask, item, item_mask, item_y, item_mask_y = batch
+                event_id = None
             user_embed, item_embed = model(
                 user,
                 user_mask.unsqueeze(-2),
@@ -179,6 +192,7 @@ def main(args):
                 create_user_target_mask(item_mask.unsqueeze(-2)),
                 item_y,
                 create_item_encoder_mask(item_mask_y.unsqueeze(-2)),
+                user_event_id=event_id,
             )
             target = torch.arange(user_embed.size(
                 0) * user_embed.size(1)).to(config.DEVICE)
@@ -216,6 +230,7 @@ def main(args):
                     eval_ks=config.EVAL_Ks,
                     tokenizer=tokenizer,
                     out_dir=args.metrics_path,
+                    use_event_id=args.use_event_id,
                 )
                 _ = critic.evaluate(epoch_train=epoch, desc="val")
                 del critic
@@ -233,6 +248,7 @@ def main(args):
             eval_ks=config.EVAL_Ks,
             tokenizer=tokenizer,
             out_dir=args.metrics_path,
+            use_event_id=args.use_event_id,
         )
         _ = critic.evaluate(epoch_train=epoch, desc="final_test")
 
@@ -249,6 +265,8 @@ def parse_args(description):
     parser.add_argument("--max_len", type=int, default=22)
     parser.add_argument("--min_seq_len", type=int, default=5)
     parser.add_argument("--test_frac", type=int, default=0.3)
+    parser.add_argument("--use_event_id", action='store_true',
+                        help="Use event_id in the dataset")
     args = parser.parse_args()
     return args
 

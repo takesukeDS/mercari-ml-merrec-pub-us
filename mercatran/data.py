@@ -412,9 +412,31 @@ def collate_batch_item_val(batch: torch.Tensor, tokenizer: Tokenizer):
     )
 
 
+def separate_event_id(batch):
+    new_batch = []
+    event_ids = []
+    for item in batch:
+        new_batch.append(item[:-1])
+        event_ids.append(item[-1])
+    return new_batch, event_ids
+
+
+def collate_batch_item_wrapper(batch: torch.Tensor, tokenizer: Tokenizer):
+    batch, event_ids = separate_event_id(batch)
+    event_ids = torch.tensor(event_ids, dtype=torch.long).to(config.DEVICE)
+    return collate_batch_item_val(batch, tokenizer) + (event_ids,)
+
+
+def collate_batch_item_val_wrapper(batch: torch.Tensor, tokenizer: Tokenizer):
+    batch, event_ids = separate_event_id(batch)
+    event_ids = torch.tensor(event_ids, dtype=torch.long).to(config.DEVICE)
+    return collate_batch_item_val(batch, tokenizer) + (event_ids,)
+
+
 class UserItemInteractionDataset(Dataset):
-    def __init__(self, interactions: pd.DataFrame):
+    def __init__(self, interactions: pd.DataFrame, return_event_id=False):
         self.interactions = interactions
+        self.return_event_id = return_event_id
 
     def __len__(self):
         return len(self.interactions)
@@ -433,4 +455,7 @@ class UserItemInteractionDataset(Dataset):
         ]
         brand_id = [event if event else 0 for event in row["brand_id"]]
         item_id = [event if event else 0 for event in row["item_id"]]
-        return category, brand, title, category_id, brand_id, item_id, user_id
+        if self.return_event_id:
+            return category, brand, title, category_id, brand_id, item_id, user_id, row['event_id']
+        else:
+            return category, brand, title, category_id, brand_id, item_id, user_id

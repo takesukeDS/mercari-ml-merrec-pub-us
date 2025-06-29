@@ -193,6 +193,12 @@ def sequence_dataset_b(path, min_seq_len=10, sample_prob=0.11, num_df=1,
             for k in result_dict[key].keys():
                 if k == "sequence_length":
                     continue
+                if len(result_dict[key][k]) != len(sorted_indices):
+                    print(result_dict[key])
+                    raise ValueError(
+                        f"Length mismatch for key {k} in sequence {key}. "
+                        f"Expected {len(sorted_indices)}, got {len(result_dict[key][k])}"
+                    )
                 result_dict[key][k] = [result_dict[key][k][i] for i in sorted_indices]
     return result_dict
 

@@ -216,7 +216,11 @@ class Evaluator:
         for i, batch in enumerate(
             tqdm(self.val_loader, desc=f"Epoch[{epoch_train}] Indexing batch")
         ):
-            _, _, item_y, item_y_mask, category_id, brand_id, item_id = batch
+            if self.use_event_id:
+                _, _, item_y, item_y_mask, category_id, brand_id, item_id, event_id = batch
+            else:
+                _, _, item_y, item_y_mask, category_id, brand_id, item_id = batch
+                event_id = None
             item_embeds = self.model.item_encoder(
                 self.model.item_encoder_embed(item_y),
                 create_item_encoder_mask(item_y_mask.unsqueeze(-2)),

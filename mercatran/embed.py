@@ -47,10 +47,10 @@ class UserEmbeddings(nn.Module):
         self.user_event_id = None
         if use_event_id:
             self.user_event_id = nn.Embedding(
-                num_embeddings=6,
+                num_embeddings=config.EVENT_ID_PADDING_IDX + 1,
                 embedding_dim=d_model,
                 max_norm=max_norm,
-                padding_idx=100,
+                padding_idx=config.EVENT_ID_PADDING_IDX,
             )
 
     def forward(self, x, event_id=None):

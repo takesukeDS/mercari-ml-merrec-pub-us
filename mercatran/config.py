@@ -25,6 +25,7 @@ EVAL_Ks = [5, 20]
 LOOKUP_SIZE = int(max(EVAL_Ks))
 ACCUM_ITER = 1
 DEVICE = "cuda:0" if torch.cuda.is_available() else "cpu"
+EVENT_ID_PADDING_IDX = 6  # Padding index for event IDs
 
 # Step LR only
 DECAY_STEP = 25

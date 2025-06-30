@@ -103,7 +103,8 @@ def sequence_dataset(path, min_seq_len=10):
 
 
 def sequence_dataset_b(path, min_seq_len=10, sample_prob=0.11, num_df=1,
-                       concat_category=False, include_event_id=False, sort_seq=False):
+                       concat_category=False, include_event_id=False, sort_seq=False,
+                       user_seq_ids_prev=None):
     event_id_table = {
         "item_view": 0,
         "item_like": 1,
@@ -175,8 +176,13 @@ def sequence_dataset_b(path, min_seq_len=10, sample_prob=0.11, num_df=1,
                 new_record['sequence_length'] = prev_record['sequence_length']
                 filter_seq[prev_record["seq_user_id"]] = new_record
                 continue
-
-            if (getattr(row, "seq_user_id") not in rejected_ids) and random.random() <= sample_prob:  # keep roughly 10% of data
+            newly_accepted = False
+            if user_seq_ids_prev is not None:
+                if getattr(row, "seq_user_id") in user_seq_ids_prev:
+                    newly_accepted = True
+            elif (getattr(row, "seq_user_id") not in rejected_ids) and random.random() <= sample_prob:  # keep roughly 10% of data
+                newly_accepted = True
+            if newly_accepted:
                 last_record = row._asdict()
                 filter_seq[last_record["seq_user_id"]] = last_record
             else:

@@ -47,7 +47,7 @@ class UserEmbeddings(nn.Module):
         self.user_event_id = None
         if use_event_id:
             self.user_event_id = nn.Embedding(
-                num_embeddings=vocab_size,
+                num_embeddings=6,
                 embedding_dim=d_model,
                 max_norm=max_norm,
                 padding_idx=100,

@@ -421,7 +421,7 @@ def separate_event_id(batch):
         # pad the event_ids to MODEL_SEQ_LEN + 2 # (start and end tokens)
         event_ids += [100] + item[-1]
         if len(item[-1]) - config.NUM_EVAL_SEQ < config.MODEL_SEQ_LEN:
-            event_ids += [100] * (config.MODEL_SEQ_LEN - len(item[-1]) - config.NUM_EVAL_SEQ)
+            event_ids += [100] * (config.MODEL_SEQ_LEN - len(item[-1]) + config.NUM_EVAL_SEQ)
         event_ids += [100]
     return new_batch, event_ids
 

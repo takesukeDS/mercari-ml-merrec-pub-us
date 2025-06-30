@@ -52,16 +52,15 @@ class UserEmbeddings(nn.Module):
                 max_norm=max_norm,
                 padding_idx=config.EVENT_ID_PADDING_IDX,
             )
+        self.d_scale = math.sqrt(d_model)
 
     def forward(self, x, event_id=None):
         if event_id is not None:
             if self.user_event_id is None:
                 raise ValueError("Event ID embeddings not initialized.")
             event_embedding = self.user_event_id(event_id)
-            return (
-                self.user_embedding_bag(x[0], x[1]) * math.sqrt(self.d_model)
-            ) + event_embedding
-        return self.user_embedding_bag(x[0], x[1]) * math.sqrt(self.d_model)
+            return (self.user_embedding_bag(x[0], x[1]) + event_embedding) * self.d_scale / 2
+        return self.user_embedding_bag(x[0], x[1]) * self.d_scale
 
 
 class ItemEmbeddings(nn.Module):

@@ -419,10 +419,10 @@ def separate_event_id(batch):
         new_batch.append(item[:-1])
         # 100 is the padding event id
         # pad the event_ids to MODEL_SEQ_LEN + 2 # (start and end tokens)
-        event_ids += [100] + item[-1]
+        event_ids += [config.EVENT_ID_PADDING_IDX] + item[-1]
         if len(item[-1]) - config.NUM_EVAL_SEQ < config.MODEL_SEQ_LEN:
-            event_ids += [100] * (config.MODEL_SEQ_LEN - len(item[-1]) + config.NUM_EVAL_SEQ)
-        event_ids += [100]
+            event_ids += [config.EVENT_ID_PADDING_IDX] * (config.MODEL_SEQ_LEN - len(item[-1]) + config.NUM_EVAL_SEQ)
+        event_ids += [config.EVENT_ID_PADDING_IDX]
     return new_batch, event_ids
 
 

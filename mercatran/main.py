@@ -39,7 +39,7 @@ from sklearn.model_selection import train_test_split
 from torch.optim.lr_scheduler import LambdaLR
 from torch.utils.data import DataLoader
 from tqdm.auto import tqdm
-from pandas import DataFrame as pd
+import pandas as pd
 
 
 EVENT_ID_TO_TOKEN = {
@@ -107,7 +107,6 @@ def preprocess_after_training_tokenizer(seq_dataset, tokenizer, args):
 def main(args):
     model_dir = pathlib.Path(args.save_path)
     model_dir.mkdir(parents=True, exist_ok=True)
-    data_path = args.data_path
     data_path = args.data_path
     data = pd.read_pickle(data_path)
     seq_dataset = pd.DataFrame.from_dict(data, orient='index')

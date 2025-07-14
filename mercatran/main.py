@@ -59,10 +59,11 @@ SHIPPER_ID_TO_TOKEN = {
 def preprocess_before_training_tokenizer(seq_dataset, args):
     if args.all_categories:
         # replace sharp sign with a space
-        seq_dataset['category_name'] = seq_dataset['category_name'].str.replace('#', ' ', regex=False)
+        seq_dataset['category_name'] = seq_dataset['category_name'].map(
+            lambda cat_list: [x.replace('#', ' ', regex=False) for x in cat_list])
     else:
         seq_dataset['category_name'] = seq_dataset['category_name'].map(
-            lambda x: x.split('#')[0] or x.split('#')[1] or x.split('#')[2])
+            lambda cat_list: [x.split('#')[0] or x.split('#')[1] or x.split('#')[2] for x in cat_list])
 
 def combine_tokens(tokens, trim=True):
     if isinstance(tokens, pd.Series):
@@ -76,31 +77,38 @@ def combine_tokens(tokens, trim=True):
 def preprocess_after_training_tokenizer(seq_dataset, tokenizer, args):
     # add special tokens to category_name
     num_added = 0
+
+    # convert ids to tokens and add to tokenizer
     if args.add_event_id:
-        seq_dataset["event_id"] = seq_dataset["event_id"].map(EVENT_ID_TO_TOKEN)
-        # raise exception if event_id contains nan
-        if seq_dataset["event_id"].isnull().any():
-            raise ValueError("event_id contains NaN values. Please check your data.")
-        seq_dataset['category_name'] = seq_dataset['category_name'] + seq_dataset["event_id"]
+        seq_dataset["event_id"] = seq_dataset["event_id"].map(
+            lambda eve_list: [EVENT_ID_TO_TOKEN[x] for x in eve_list])
         num_added += tokenizer.add_special_tokens(list(EVENT_ID_TO_TOKEN.values()))
 
     if args.add_shipper_id:
-        seq_dataset["shipper_id"] = seq_dataset["shipper_id"].map(SHIPPER_ID_TO_TOKEN)
-        # raise exception if shipper_id contains nan
-        if seq_dataset["shipper_id"].isnull().any():
-            raise ValueError("shipper_id contains NaN values. Please check your data.")
-        seq_dataset['category_name'] = seq_dataset['category_name'] + seq_dataset["shipper_id"]
+        seq_dataset["shipper_id"] = seq_dataset["shipper_id"].map(
+            lambda ship_list: [SHIPPER_ID_TO_TOKEN[x] for x in ship_list])
         num_added += tokenizer.add_special_tokens(list(SHIPPER_ID_TO_TOKEN.values()))
 
     if args.add_event_id and args.add_shipper_id:
-        seq_dataset['tmp'] = seq_dataset[['event_id', 'shipper_id']].apply(
-            combine_tokens, axis=1)
-        seq_dataset['category_name'] = seq_dataset['category_name'] + seq_dataset['tmp']
         combined_tokens = []
         for event_id in EVENT_ID_TO_TOKEN.values():
             for shipper_id in SHIPPER_ID_TO_TOKEN.values():
                 combined_tokens.append(combine_tokens([event_id, shipper_id]))
         num_added += tokenizer.add_special_tokens(combined_tokens)
+
+    # add event_id and shipper_id to category_name
+    if args.add_event_id or args.add_shipper_id:
+        for index, row in enumerate(seq_dataset.itertuples(), index=False, name="Row"):
+            new_category_name = row.category_name.copy()
+            if args.add_event_id:
+                new_category_name = [cat + eve for cat,eve in zip(new_category_name, row.event_id)]
+            if args.add_shipper_id:
+                new_category_name = [cat + ship for cat, ship in zip(new_category_name, row.shipper_id)]
+            if args.add_event_id and args.add_shipper_id:
+                new_category_name = [cat + combine_tokens([eve, ship]) for cat, eve, ship in zip(
+                    new_category_name, row.event_id, row.shipper_id)]
+            seq_dataset.at[index, 'category_name'] = new_category_name
+
     return num_added
 
 

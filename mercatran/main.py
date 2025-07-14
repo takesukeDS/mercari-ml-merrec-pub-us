@@ -98,6 +98,7 @@ def preprocess_after_training_tokenizer(seq_dataset, tokenizer, args):
 
     # add event_id and shipper_id to category_name
     if args.add_event_id or args.add_shipper_id:
+        seq_dataset = seq_dataset.reset_index()
         for index, row in enumerate(seq_dataset.itertuples(index=False, name="Row")):
             new_category_name = row.category_name.copy()
             if args.add_event_id:

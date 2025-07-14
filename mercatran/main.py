@@ -65,7 +65,7 @@ def preprocess_before_training_tokenizer(seq_dataset, args):
         seq_dataset['category_name'] = seq_dataset['category_name'].map(
             lambda cat_list: [x.split('#')[0] or x.split('#')[1] or x.split('#')[2] for x in cat_list])
     seq_dataset['category_id'] = seq_dataset['category_id'].map(
-        lambda cat_list: [int(x.split('#')[0]) or int(x.split('#')[1]) or int(x.split('#')[2]) for x in cat_list])
+        lambda cat_list: [float(x.split('#')[0]) or float(x.split('#')[1]) or float(x.split('#')[2]) for x in cat_list])
 
 def combine_tokens(tokens, trim=True):
     if isinstance(tokens, pd.Series):

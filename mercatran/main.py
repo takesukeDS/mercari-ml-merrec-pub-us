@@ -126,6 +126,7 @@ def main(args):
     num_added_tokens = preprocess_after_training_tokenizer(seq_dataset, tokenizer, args)
     tokenizer.save(os.path.join(args.save_path, args.tokenizer_save_name))
     logging.info(seq_dataset.iloc[0])
+    logging.info(seq_dataset.iloc[0]["category_name"])
     logging.info(f"Number of added tokens: {num_added_tokens}, New tokenizer size: {tokenizer.get_vocab_size()}")
     train_df, test_df = train_test_split(
         seq_dataset, test_size=args.test_frac, random_state=args.seed)

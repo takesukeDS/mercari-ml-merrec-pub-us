@@ -104,7 +104,8 @@ class ThreeTower(nn.Module):
 
     def forward(self, user, user_mask, item, item_mask, item_y, item_mask_y, user_event_id=None):
         user_enc_out = self.user_encoder(
-            self.user_encoder_embed(user, user_event_id), user_mask)
+            self.user_encoder_embed(user, user_event_id) if user_event_id else self.user_encoder_embed(user)
+            , user_mask)
         user_dec_out = self.user_decoder(
             self.user_decoder_embed(item), user_enc_out, user_mask, item_mask
         )

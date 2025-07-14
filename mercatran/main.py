@@ -60,7 +60,7 @@ def preprocess_before_training_tokenizer(seq_dataset, args):
     if args.all_categories:
         # replace sharp sign with a space
         seq_dataset['category_name'] = seq_dataset['category_name'].map(
-            lambda cat_list: [x.replace('#', ' ', regex=False) for x in cat_list])
+            lambda cat_list: [x.replace('#', ' ') for x in cat_list])
     else:
         seq_dataset['category_name'] = seq_dataset['category_name'].map(
             lambda cat_list: [x.split('#')[0] or x.split('#')[1] or x.split('#')[2] for x in cat_list])

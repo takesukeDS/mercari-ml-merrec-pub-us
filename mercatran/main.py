@@ -43,17 +43,17 @@ import pandas as pd
 
 
 EVENT_ID_TO_TOKEN = {
-    "item_view": "<item_view>",
-    "item_like":  "<item_like>",
-    "item_add_to_cart_tap":  "<item_add_to_cart_tap>",
-    "offer_make":  "<offer_make>",
-    "buy_start":  "<buy_start>",
-    "buy_comp":  "<buy_comp>",
+    "item_view": "AAitem_viewAA",
+    "item_like":  "AAitem_likeAA",
+    "item_add_to_cart_tap":  "AAitem_add_to_cart_tapAA",
+    "offer_make":  "AAoffer_makeAA",
+    "buy_start":  "AAbuy_startAA",
+    "buy_comp":  "AAbuy_compAA",
 }
 
 SHIPPER_ID_TO_TOKEN = {
-    1: "<Buyer>",
-    2: "<Seller>"
+    1: "BBBuyerBB",
+    2: "BBSellerBB"
 }
 
 def preprocess_before_training_tokenizer(seq_dataset, args):
@@ -75,8 +75,8 @@ def combine_tokens(tokens, trim=True):
     if trim:
         # Remove the first and last characters (e.g., '<' and '>')
         tokens = [token[1:-1] for token in tokens]
-    combined = ','.join(tokens)
-    return "<" + combined + ">"
+    combined = ''.join(tokens)
+    return "CC" + combined + "CC"
 
 def preprocess_after_training_tokenizer(seq_dataset, tokenizer, args):
     # add special tokens to category_name

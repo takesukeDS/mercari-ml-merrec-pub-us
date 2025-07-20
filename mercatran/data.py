@@ -327,15 +327,16 @@ def collate_batch_item(batch: torch.Tensor, tokenizer: Tokenizer):
     )
 
 
-def collate_batch_item_val(batch: torch.Tensor, tokenizer: Tokenizer):
+def collate_batch_item_val(batch: torch.Tensor, tokenizer: Tokenizer, return_user_id=False):
     user_dict = {"tokens": [], "offsets": [0]}
     item_dict_y = {"tokens": [], "offsets": [0]}
     category_id_dict = {"tokens": []}
     brand_id_dict = {"tokens": []}
     item_id_dict = {"tokens": []}
+    user_ids = []
     user_mask, item_mask = [], []
 
-    for category, brand, title, category_id, brand_id, item_id, _ in batch:
+    for category, brand, title, category_id, brand_id, item_id, user_id in batch:
         # add start token to the start of user sequence
         add_token(user_dict, tokenizer=tokenizer, token_type=START_TOKEN)
         # use only the first N - config.NUM_EVAL_SEQ
@@ -396,6 +397,9 @@ def collate_batch_item_val(batch: torch.Tensor, tokenizer: Tokenizer):
                 dtype=torch.long,
             )
         )
+        user_ids.append(
+            user_id
+        )
 
     item_dict_y["offsets"] = (
         torch.tensor(item_dict_y["offsets"][:-1]
@@ -404,6 +408,19 @@ def collate_batch_item_val(batch: torch.Tensor, tokenizer: Tokenizer):
     user_dict["offsets"] = (
         torch.tensor(user_dict["offsets"][:-1]).cumsum(dim=0).to(config.DEVICE)
     )
+    if return_user_id:
+        return (
+            (torch.cat(user_dict["tokens"]).to(
+                config.DEVICE), user_dict["offsets"]),
+            torch.from_numpy(np.array(user_mask)).to(config.DEVICE),
+            (torch.cat(item_dict_y["tokens"]).to(
+                config.DEVICE), item_dict_y["offsets"]),
+            torch.from_numpy(np.array(item_mask)).to(config.DEVICE),
+            torch.cat(category_id_dict["tokens"], dim=0).to(config.DEVICE),
+            torch.cat(brand_id_dict["tokens"], dim=0).to(config.DEVICE),
+            torch.cat(item_id_dict["tokens"], dim=0).to(config.DEVICE),
+            user_ids,
+        )
 
     return (
         (torch.cat(user_dict["tokens"]).to(

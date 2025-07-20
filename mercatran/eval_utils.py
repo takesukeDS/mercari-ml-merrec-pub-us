@@ -37,8 +37,9 @@ class RetrievalIndex:
         self.item_metadata = {}
         self.map_cat_ids = np.vectorize(self.get_cat_id)
         self.map_brand_ids = np.vectorize(self.get_brand_id)
+        self.map_user_ids = np.vectorize(self.get_user_id)
 
-    def insert_items(self, item_embeds, item_ids, cat_ids, brand_ids):
+    def insert_items(self, item_embeds, item_ids, cat_ids, brand_ids, user_ids=None):
         item_ids = torch.flatten(item_ids).cpu().numpy()
         cat_ids = torch.flatten(cat_ids).cpu().numpy()
         brand_ids = torch.flatten(brand_ids).cpu().numpy()
@@ -50,6 +51,7 @@ class RetrievalIndex:
             self.item_metadata[int(it)] = {
                 "brand_id": int(brand_ids[b]),
                 "cat_id": int(cat_ids[b]),
+                "user_id": user_ids[b] if user_ids is not None else None,
             }
 
     def get_cat_id(self, i: int):
@@ -58,14 +60,22 @@ class RetrievalIndex:
     def get_brand_id(self, i: int):
         return self.item_metadata[i]["brand_id"]
 
-    def query_search(self, query_embed):
+    def get_user_id(self, i: int):
+        return self.item_metadata[i]["user_id"]
+
+    def query_search(self, query_embed, return_user_id=False):
         _, item_ids = self.index.search(
             query_embed.cpu().numpy(),
             k=self.lookup_size,
         )
         cat_ids = self.map_cat_ids(item_ids)
         brand_ids = self.map_brand_ids(item_ids)
-        return item_ids, cat_ids, brand_ids
+        output = item_ids, cat_ids, brand_ids
+        if return_user_id:
+            user_ids = self.map_user_ids(item_ids)
+            output = item_ids, cat_ids, brand_ids, user_ids
+        return output
+
 
 
 class Evaluator:
@@ -399,3 +409,138 @@ class Evaluator:
                     )
                 )
         return result_k
+
+    def recommend(self, desc=""):
+        """Run one full pass over validation data."""
+        index = RetrievalIndex(self.d_model, self.lookup_size)
+        total_cat = total_brand = total_item = 0
+        total_pred = {}
+        cat_pos, brand_pos, item_pos = {}, {}, {}
+        cat_pos_bin, brand_pos_bin = {}, {}  # Binarized counts for recall@k
+        cat_recall, brand_recall, item_recall = {}, {}, {}
+        cat_precision, brand_precision, item_precision = {}, {}, {}
+        cat_count, brand_count = {}, {}  # Diversity counts
+        ndcg = {}
+        for k in self.eval_ks:
+            cat_pos[k] = collections.defaultdict(float)
+            brand_pos[k] = collections.defaultdict(float)
+            item_pos[k] = collections.defaultdict(float)
+            cat_pos_bin[k] = collections.defaultdict(float)
+            brand_pos_bin[k] = collections.defaultdict(float)
+            cat_recall[k] = collections.defaultdict(float)
+            brand_recall[k] = collections.defaultdict(float)
+            item_recall[k] = collections.defaultdict(float)
+            cat_precision[k] = collections.defaultdict(float)
+            brand_precision[k] = collections.defaultdict(float)
+            item_precision[k] = collections.defaultdict(float)
+            cat_count[k] = collections.defaultdict(float)
+            brand_count[k] = collections.defaultdict(float)
+            ndcg[k] = collections.defaultdict(float)
+            total_pred[k] = 0.0
+        for i, batch in enumerate(
+            tqdm(self.val_loader, desc=f"Indexing batch")
+        ):
+            _, _, item_y, item_y_mask, category_id, brand_id, item_id, user_id = batch
+            event_id = None
+            item_embeds = self.model.item_encoder(
+                self.model.item_encoder_embed(item_y),
+                create_item_encoder_mask(item_y_mask.unsqueeze(-2)),
+            )
+            index.insert_items(
+                item_embeds=item_embeds,
+                item_ids=item_id,
+                cat_ids=category_id,
+                brand_ids=brand_id,
+                user_ids=user_id,
+            )
+
+        if torch.cuda.is_available():
+            torch.cuda.empty_cache()
+        recommendation_example = []
+        for i, batch in enumerate(
+            tqdm(self.val_loader,
+                 desc=f"Evaluating batch")
+        ):
+            pred_category = collections.defaultdict(list)
+            pred_brand = collections.defaultdict(list)
+            pred_item = collections.defaultdict(list)
+            pred_user = collections.defaultdict(list)
+            actual_category = {}
+            actual_brand = {}
+            actual_item = {}
+            actual_user = {}
+
+            user, user_mask, _, _, category_id, brand_id, item_id, user_id = batch
+            event_id = None
+            user_enc_out = self.model.user_encoder(
+                self.model.user_encoder_embed(user, event_id) if event_id else self.model.user_encoder_embed(user),
+                user_mask.unsqueeze(-2)
+            )
+            dec_embed = self.model.user_decoder_embed(
+                create_start_token_sequence(
+                    tokenizer=self.tokenizer, batch_size=self.batch_size)
+            )
+
+            for b in range(self.batch_size):
+                actual_category[b] = list(category_id.cpu().numpy()[b])
+                actual_brand[b] = list(brand_id.cpu().numpy()[b])
+                actual_item[b] = list(item_id.cpu().numpy()[b])
+
+            for t in range(self.num_eval_seq):
+                user_dec_out = self.model.user_decoder(
+                    dec_embed,
+                    user_enc_out,
+                    user_mask.unsqueeze(-2),
+                    create_subsequent_mask(self.batch_size, dec_embed.size(1)),
+                )
+                item_ids, cat_ids, brand_ids, user_ids = index.query_search(
+                    query_embed=user_dec_out[:, -1, :], return_user_id=True
+                )
+                for b in range(self.batch_size):
+                    pred_category[b].append(cat_ids[b])
+                    pred_brand[b].append(brand_ids[b])
+                    pred_item[b].append(item_ids[b])
+                    pred_user[b].append(user_ids[b])
+
+                dec_embed = torch.cat(
+                    (dec_embed, user_dec_out[:, -1, :].unsqueeze(1)), dim=1
+                )
+            for b in actual_category:
+                seq = 0
+                k = self.eval_ks[0]
+                recommendation_example.append(
+                    (
+                        actual_user[b][seq],
+                        actual_category[b][seq],
+                        actual_brand[b][seq],
+                        actual_item[b][seq],
+                    )
+                    + tuple(pred_item[b][seq][0:k])
+                    + tuple(pred_user[b][seq][0:k])
+                )
+
+
+        if torch.cuda.is_available():
+            torch.cuda.empty_cache()
+
+        columns = [
+            "user_id",
+            "category_id",
+            "brand_id",
+            "item_id",
+        ]
+        columns += [f"pred_item_id_{rank}" for rank in range(1, k + 1)]
+        columns += [f"pred_user_id_{rank}" for rank in range(1, k + 1)]
+        result_df = pd.DataFrame(recommendation_example,
+                                 columns=columns)
+        print("-" * 30 + f"recommendation_example" + "-" * 30)
+        print(result_df.head())
+        print("-" * 70)
+        if self.out_dir is not None:
+            result_df.to_csv(
+                os.path.join(
+                    self.out_dir,
+                    f"recommendation_example_at{k}_{desc}.csv"
+                )
+            )
+        return result_df

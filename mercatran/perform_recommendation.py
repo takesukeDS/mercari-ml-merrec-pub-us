@@ -57,7 +57,17 @@ SHIPPER_ID_TO_TOKEN = {
     2: "BBSellerBB"
 }
 
-def preprocess_before_training_tokenizer(seq_dataset, args):
+
+def combine_tokens(tokens, trim=True):
+    if isinstance(tokens, pd.Series):
+        tokens = tokens.tolist()
+    if trim:
+        # Remove the first and last characters (e.g., '<' and '>')
+        tokens = [token[1:-1] for token in tokens]
+    combined = ''.join(tokens)
+    return "CC" + combined + "CC"
+
+def preprocess_dataset(seq_dataset, args):
     if args.all_categories:
         # replace sharp sign with a space
         seq_dataset['category_name'] = seq_dataset['category_name'].map(
@@ -69,23 +79,16 @@ def preprocess_before_training_tokenizer(seq_dataset, args):
         cat_list = [x.split('#')[0] or x.split('#')[1] or x.split('#')[2] for x in cat_list]
         return [int(float(x)) for x in cat_list]
     seq_dataset['category_id'] = seq_dataset['category_id'].map(convert_category_id)
+    # convert ids to tokens and add to tokenizer
+    if args.add_event_id:
+        seq_dataset["event_id"] = seq_dataset["event_id"].map(
+            lambda eve_list: [EVENT_ID_TO_TOKEN[x] for x in eve_list])
 
-def combine_tokens(tokens, trim=True):
-    if isinstance(tokens, pd.Series):
-        tokens = tokens.tolist()
-    if trim:
-        # Remove the first and last characters (e.g., '<' and '>')
-        tokens = [token[1:-1] for token in tokens]
-    combined = ''.join(tokens)
-    return "CC" + combined + "CC"
-
-def preprocess_after_training_tokenizer(seq_dataset, tokenizer, args):
+    if args.add_shipper_id:
+        seq_dataset["shipper_id"] = seq_dataset["shipper_id"].map(
+            lambda ship_list: [SHIPPER_ID_TO_TOKEN[x] for x in ship_list])
     # add special tokens to category_name
-    num_added = add_special_tokens(args, seq_dataset, tokenizer)
-
     append_tokens_to_cat(args, seq_dataset)
-
-    return num_added
 
 
 def append_tokens_to_cat(args, seq_dataset):
@@ -128,13 +131,12 @@ def main(args):
     logging.info("Starting recommendation pipeline...")
     data_path = args.data_path
     data = pd.read_pickle(data_path)
+    tokenizer = Tokenizer.from_file(args.tokenizer_path)
     seq_dataset = pd.DataFrame.from_dict(data, orient='index')
     # seq_dataset = seq_dataset[
     #     ['seq_user_id', 'name', 'category_name', 'brand_name', 'category_id', 'brand_id', 'item_id', 'event_id']]
-    preprocess_before_training_tokenizer(seq_dataset, args)
     logging.info(seq_dataset.iloc[0])
-    tokenizer = Tokenizer.from_file(args.tokenizer_path)
-    append_tokens_to_cat(args, seq_dataset)
+    preprocess_dataset(seq_dataset, args)
     logging.info(seq_dataset.iloc[0])
     logging.info(seq_dataset.iloc[0]["category_name"])
     _, test_df = train_test_split(

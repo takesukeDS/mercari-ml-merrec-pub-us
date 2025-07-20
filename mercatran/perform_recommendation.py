@@ -81,33 +81,21 @@ def combine_tokens(tokens, trim=True):
 
 def preprocess_after_training_tokenizer(seq_dataset, tokenizer, args):
     # add special tokens to category_name
-    num_added = 0
+    num_added = add_special_tokens(args, seq_dataset, tokenizer)
 
-    # convert ids to tokens and add to tokenizer
-    if args.add_event_id:
-        seq_dataset["event_id"] = seq_dataset["event_id"].map(
-            lambda eve_list: [EVENT_ID_TO_TOKEN[x] for x in eve_list])
-        num_added += tokenizer.add_special_tokens(list(EVENT_ID_TO_TOKEN.values()))
+    append_tokens_to_cat(args, seq_dataset)
 
-    if args.add_shipper_id:
-        seq_dataset["shipper_id"] = seq_dataset["shipper_id"].map(
-            lambda ship_list: [SHIPPER_ID_TO_TOKEN[x] for x in ship_list])
-        num_added += tokenizer.add_special_tokens(list(SHIPPER_ID_TO_TOKEN.values()))
+    return num_added
 
-    if args.add_event_id and args.add_shipper_id:
-        combined_tokens = []
-        for event_id in EVENT_ID_TO_TOKEN.values():
-            for shipper_id in SHIPPER_ID_TO_TOKEN.values():
-                combined_tokens.append(combine_tokens([event_id, shipper_id]))
-        num_added += tokenizer.add_special_tokens(combined_tokens)
 
+def append_tokens_to_cat(args, seq_dataset):
     # add event_id and shipper_id to category_name
     if args.add_event_id or args.add_shipper_id:
         seq_dataset.reset_index(inplace=True)
         for index, row in enumerate(seq_dataset.itertuples(index=False, name="Row")):
             new_category_name = row.category_name.copy()
             if args.add_event_id:
-                new_category_name = [cat + eve for cat,eve in zip(new_category_name, row.event_id)]
+                new_category_name = [cat + eve for cat, eve in zip(new_category_name, row.event_id)]
             if args.add_shipper_id:
                 new_category_name = [cat + ship for cat, ship in zip(new_category_name, row.shipper_id)]
             if args.add_event_id and args.add_shipper_id:
@@ -115,6 +103,24 @@ def preprocess_after_training_tokenizer(seq_dataset, tokenizer, args):
                     new_category_name, row.event_id, row.shipper_id)]
             seq_dataset.at[index, 'category_name'] = new_category_name
 
+
+def add_special_tokens(args, seq_dataset, tokenizer):
+    num_added = 0
+    # convert ids to tokens and add to tokenizer
+    if args.add_event_id:
+        seq_dataset["event_id"] = seq_dataset["event_id"].map(
+            lambda eve_list: [EVENT_ID_TO_TOKEN[x] for x in eve_list])
+        num_added += tokenizer.add_special_tokens(list(EVENT_ID_TO_TOKEN.values()))
+    if args.add_shipper_id:
+        seq_dataset["shipper_id"] = seq_dataset["shipper_id"].map(
+            lambda ship_list: [SHIPPER_ID_TO_TOKEN[x] for x in ship_list])
+        num_added += tokenizer.add_special_tokens(list(SHIPPER_ID_TO_TOKEN.values()))
+    if args.add_event_id and args.add_shipper_id:
+        combined_tokens = []
+        for event_id in EVENT_ID_TO_TOKEN.values():
+            for shipper_id in SHIPPER_ID_TO_TOKEN.values():
+                combined_tokens.append(combine_tokens([event_id, shipper_id]))
+        num_added += tokenizer.add_special_tokens(combined_tokens)
     return num_added
 
 
@@ -129,7 +135,7 @@ def main(args):
     preprocess_before_training_tokenizer(seq_dataset, args)
     logging.info(seq_dataset.iloc[0])
     tokenizer = Tokenizer.from_file(args.tokenizer_path)
-    preprocess_after_training_tokenizer(seq_dataset, args)
+    append_tokens_to_cat(args, seq_dataset)
     logging.info(seq_dataset.iloc[0])
     logging.info(seq_dataset.iloc[0]["category_name"])
     _, test_df = train_test_split(

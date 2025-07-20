@@ -125,6 +125,7 @@ def add_special_tokens(args, seq_dataset, tokenizer):
 
 
 def main(args):
+    logging.info("Starting recommendation pipeline...")
     data_path = args.data_path
     data = pd.read_pickle(data_path)
     seq_dataset = pd.DataFrame.from_dict(data, orient='index')
@@ -141,7 +142,6 @@ def main(args):
     val_df, test_df = train_test_split(
         test_df, test_size=0.5, random_state=args.seed)
 
-    val_dataset = UserItemInteractionDataset(interactions=val_df)
     test_dataset = UserItemInteractionDataset(interactions=test_df)
 
     test_loader = DataLoader(

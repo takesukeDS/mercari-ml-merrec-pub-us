@@ -125,8 +125,6 @@ def add_special_tokens(args, seq_dataset, tokenizer):
 
 
 def main(args):
-    model_dir = pathlib.Path(args.save_path)
-    model_dir.mkdir(parents=True, exist_ok=True)
     data_path = args.data_path
     data = pd.read_pickle(data_path)
     seq_dataset = pd.DataFrame.from_dict(data, orient='index')
@@ -219,7 +217,11 @@ def main(args):
         ),
     )
 
-    model = model_initialization(model)
+    # load model from args.model_path
+    model_path = pathlib.Path(args.model_path)
+    if not model_path.exists():
+        raise FileNotFoundError(f"Model path {model_path} does not exist.")
+    model.load_state_dict(torch.load(model_path, map_location=config.DEVICE))
     model.to(config.DEVICE)
     logging.info(f"The device is: {config.DEVICE}")
 

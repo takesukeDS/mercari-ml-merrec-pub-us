@@ -474,7 +474,6 @@ class Evaluator:
             actual_category = {}
             actual_brand = {}
             actual_item = {}
-            actual_user = {}
 
             user, user_mask, _, _, category_id, brand_id, item_id, user_id = batch
             event_id = None
@@ -516,7 +515,7 @@ class Evaluator:
                 k = self.eval_ks[0]
                 recommendation_example.append(
                     (
-                        actual_user[b][seq],
+                        user_id[b],
                         actual_category[b][seq],
                         actual_brand[b][seq],
                         actual_item[b][seq],

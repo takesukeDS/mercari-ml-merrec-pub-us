@@ -13,7 +13,7 @@ from tokenizers import Tokenizer
 from tqdm.auto import tqdm
 
 from data import create_start_token_sequence
-
+import config
 
 class DCGRelScore(Enum):
     item_id_match = 1.0
@@ -47,6 +47,12 @@ class RetrievalIndex:
             item_embeds.view(-1, self.d_model).cpu().numpy(),
             item_ids,
         )
+        if user_ids is not None and len(item_ids) != len(user_ids):
+            new_user_ids = []
+            for uid in user_ids:
+                new_user_ids.extend([uid] * config.NUM_EVAL_SEQ)
+            user_ids = new_user_ids
+
         for b, it in enumerate(item_ids):
             self.item_metadata[int(it)] = {
                 "brand_id": int(brand_ids[b]),

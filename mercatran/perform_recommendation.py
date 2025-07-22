@@ -67,29 +67,115 @@ def combine_tokens(tokens, trim=True):
     combined = ''.join(tokens)
     return "CC" + combined + "CC"
 
+def all_hierarchical_category(lst):
+    return [
+        ' '.join([part for part in s.split('#')[::-1] if part.strip() != ''])
+        for s in lst
+    ]
+
+def min_hierarchical_category(lst):
+    result = []
+    for s in lst:
+        for part in s.split('#'):
+            if part.strip():
+                result.append(float(part))
+                break  # その文字列については先頭のみでOK
+    return result
+
+dict_event = {
+    'item_view': 'aaaviewbbb',
+    'item_like': 'aaalikebbb',
+    'item_add_to_cart_tap': 'aaaaddbbb',
+    'buy_start': 'aaastartbbb',
+    'offer_make': 'aaaofferbbb',
+    'buy_comp': 'aaacompbbb'
+}
+
+def calculate_time_diffs(timestamp_seq):
+    dt_series = pd.to_datetime(pd.Series(timestamp_seq), format='%Y-%m-%d %H:%M:%S.%f')
+    time_deltas = dt_series.diff()
+    seconds_diff = time_deltas.dt.total_seconds().fillna(0)
+    return [int(s) for s in seconds_diff]
+
+def categorize_time_diff(seconds):
+    if seconds < 12: return 'aaaimmediatebbb'
+    elif seconds < 32: return 'aaaquickbbb'
+    elif seconds < 123: return 'aaaslowbbb'
+    else: return 'aaadawdlebbb'
+
+dict_shipper = {
+    1: 'aaabuyerbbb',
+    2: 'aaasellerbbb'
+}
+
 def preprocess_dataset(seq_dataset, args):
-    if args.all_categories:
-        # replace sharp sign with a space
-        seq_dataset['category_name'] = seq_dataset['category_name'].map(
-            lambda cat_list: [x.replace('#', ' ') for x in cat_list])
-    else:
-        seq_dataset['category_name'] = seq_dataset['category_name'].map(
-            lambda cat_list: [x.split('#')[0] or x.split('#')[1] or x.split('#')[2] for x in cat_list])
-    def convert_category_id(cat_list):
-        cat_list = [x.split('#')[0] or x.split('#')[1] or x.split('#')[2] for x in cat_list]
-        return [int(float(x)) for x in cat_list]
-    seq_dataset['category_id'] = seq_dataset['category_id'].map(convert_category_id)
-    # convert ids to tokens and add to tokenizer
-    if args.add_event_id:
-        seq_dataset["event_id"] = seq_dataset["event_id"].map(
-            lambda eve_list: [EVENT_ID_TO_TOKEN[x] for x in eve_list])
+    if args.preprocess_method == 'takemoto':
+        if args.all_categories:
+            # replace sharp sign with a space
+            seq_dataset['category_name'] = seq_dataset['category_name'].map(
+                lambda cat_list: [x.replace('#', ' ') for x in cat_list])
+        else:
+            seq_dataset['category_name'] = seq_dataset['category_name'].map(
+                lambda cat_list: [x.split('#')[0] or x.split('#')[1] or x.split('#')[2] for x in cat_list])
+        def convert_category_id(cat_list):
+            cat_list = [x.split('#')[0] or x.split('#')[1] or x.split('#')[2] for x in cat_list]
+            return [int(float(x)) for x in cat_list]
+        seq_dataset['category_id'] = seq_dataset['category_id'].map(convert_category_id)
+        # convert ids to tokens and add to tokenizer
+        if args.add_event_id:
+            seq_dataset["event_id"] = seq_dataset["event_id"].map(
+                lambda eve_list: [EVENT_ID_TO_TOKEN[x] for x in eve_list])
 
-    if args.add_shipper_id:
-        seq_dataset["shipper_id"] = seq_dataset["shipper_id"].map(
-            lambda ship_list: [SHIPPER_ID_TO_TOKEN[x] for x in ship_list])
-    # add special tokens to category_name
-    append_tokens_to_cat(args, seq_dataset)
+        if args.add_shipper_id:
+            seq_dataset["shipper_id"] = seq_dataset["shipper_id"].map(
+                lambda ship_list: [SHIPPER_ID_TO_TOKEN[x] for x in ship_list])
+        # add special tokens to category_name
+        append_tokens_to_cat(args, seq_dataset)
+    elif args.preprocess_method == 'kawabata':
+        # カテゴリ階層
+        seq_dataset['category_name'] = seq_dataset['category_name'].apply(all_hierarchical_category)
+        seq_dataset["category_id"] = seq_dataset["category_id"].apply(min_hierarchical_category)
+        # イベントID
+        seq_dataset["event_id"] = seq_dataset["event_id"].apply(lambda lst: [dict_event[x] for x in lst])
+        # タイムスタンプ
+        seq_dataset['time_diff_seconds'] = seq_dataset['stime'].apply(calculate_time_diffs)
+        seq_dataset['time_label'] = seq_dataset['time_diff_seconds'].apply(
+            lambda seq: [categorize_time_diff(s) for s in seq])
+        # Shipper
+        seq_dataset["shipper_id"] = seq_dataset["shipper_id"].apply(lambda lst: [dict_shipper[x] for x in lst])
 
+        # イベントID * タイムスタンプ
+        seq_dataset['event_time'] = seq_dataset.apply(
+            lambda row: [a + b for a, b in zip(row['event_id'], row['time_label'])], axis=1)
+        seq_dataset["event_time"] = seq_dataset["event_time"].apply(lambda lst: [s.replace("bbbaaa", "") for s in lst])
+        # イベントID * Shipper
+        seq_dataset['event_shipper'] = seq_dataset.apply(
+            lambda row: [a + b for a, b in zip(row['event_id'], row['shipper_id'])], axis=1)
+        seq_dataset["event_shipper"] = seq_dataset["event_shipper"].apply(
+            lambda lst: [s.replace("bbbaaa", "") for s in lst])
+        # タイムスタンプ * Shipper
+        seq_dataset["time_shipper"] = seq_dataset.apply(
+            lambda row: [a + b for a, b in zip(row['time_label'], row['shipper_id'])], axis=1)
+        seq_dataset["time_shipper"] = seq_dataset["time_shipper"].apply(
+            lambda lst: [s.replace("bbbaaa", "") for s in lst])
+        # イベントID * タイムスタンプ * Shipper
+        seq_dataset["event_time_shipper"] = seq_dataset.apply(
+            lambda row: [a + b for a, b in zip(row['event_time'], row['shipper_id'])], axis=1)
+        seq_dataset["event_time_shipper"] = seq_dataset["event_time_shipper"].apply(
+            lambda lst: [s.replace("bbbaaa", "") for s in lst])
+
+        # 追加属性をcategory_nameに結合
+        target_cols = ['category_name', 'event_id', 'time_label', 'shipper_id',
+                       'event_time', 'event_shipper', 'time_shipper', 'event_time_shipper']
+        seq_dataset['category_name'] = seq_dataset[target_cols].apply(
+            lambda row: [''.join(items) for items in zip(*row)], axis=1)
+        # 以降の処理に用いる最終的なseq_dataset
+        seq_dataset = seq_dataset[
+            ['seq_user_id', 'name', 'category_name', 'brand_name', 'category_id', 'brand_id', 'item_id']]
+    elif args.preprocess_method == "ogawa":
+        raise NotImplementedError("Ogawa preprocessing method is not implemented yet.")
+
+    return seq_dataset
 
 def append_tokens_to_cat(args, seq_dataset):
     # add event_id and shipper_id to category_name
@@ -135,8 +221,10 @@ def main(args):
     seq_dataset = pd.DataFrame.from_dict(data, orient='index')
     # seq_dataset = seq_dataset[
     #     ['seq_user_id', 'name', 'category_name', 'brand_name', 'category_id', 'brand_id', 'item_id', 'event_id']]
+    logging.info("Before preprocessing:")
     logging.info(seq_dataset.iloc[0])
-    preprocess_dataset(seq_dataset, args)
+    seq_dataset = preprocess_dataset(seq_dataset, args)
+    logging.info("After preprocessing:")
     logging.info(seq_dataset.iloc[0])
     logging.info(seq_dataset.iloc[0]["category_name"])
     _, test_df = train_test_split(
@@ -262,6 +350,8 @@ def parse_args(description):
                         help="Add shipper_id to category_name")
     parser.add_argument("--all_categories", action='store_true',)
     parser.add_argument("--num_added_tokens", type=int, default=0,)
+    parser.add_argument('--preprocess_method', choices=['kawabata', 'takemoto', 'ogawa'],
+                        required=True,),
     args = parser.parse_args()
     return args
 

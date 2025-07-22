@@ -38,20 +38,38 @@ class RetrievalIndex:
         self.map_cat_ids = np.vectorize(self.get_cat_id)
         self.map_brand_ids = np.vectorize(self.get_brand_id)
         self.map_user_ids = np.vectorize(self.get_user_id)
+        self.item_id_set = set()
+
 
     def insert_items(self, item_embeds, item_ids, cat_ids, brand_ids, user_ids=None):
         item_ids = torch.flatten(item_ids).cpu().numpy()
         cat_ids = torch.flatten(cat_ids).cpu().numpy()
         brand_ids = torch.flatten(brand_ids).cpu().numpy()
-        self.index.add_with_ids(
-            item_embeds.view(-1, self.d_model).cpu().numpy(),
-            item_ids,
-        )
         if user_ids is not None and len(item_ids) != len(user_ids):
             new_user_ids = []
             for uid in user_ids:
                 new_user_ids.extend([uid] * config.NUM_EVAL_SEQ)
             user_ids = new_user_ids
+            assert len(item_ids) == len(user_ids), "User IDs length must match item IDs length."
+        # handle duplication in item_id
+        indices = []
+        new_user_ids = []
+        for idx, it in enumerate(item_ids):
+            it = int(it)
+            if it in self.item_id_set:
+                continue
+            indices.append(idx)
+            new_user_ids.append(user_ids[idx] if user_ids is not None else None)
+            self.item_id_set.add(it)
+        item_ids = item_ids[indices]
+        cat_ids = cat_ids[indices]
+        brand_ids = brand_ids[indices]
+        user_ids = new_user_ids
+        item_embeds = item_embeds.view(-1, self.d_model)[indices].cpu().numpy()
+        self.index.add_with_ids(
+            item_embeds,
+            item_ids,
+        )
 
         for b, it in enumerate(item_ids):
             self.item_metadata[int(it)] = {

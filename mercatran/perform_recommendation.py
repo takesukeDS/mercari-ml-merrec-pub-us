@@ -131,10 +131,12 @@ def preprocess_dataset(seq_dataset, args):
                 lambda ship_list: [SHIPPER_ID_TO_TOKEN[x] for x in ship_list])
         # add special tokens to category_name
         append_tokens_to_cat(args, seq_dataset)
-    elif args.preprocess_method == 'kawabata':
+    elif args.preprocess_method.startswith('kawabata'):
         # カテゴリ階層
         seq_dataset['category_name'] = seq_dataset['category_name'].apply(all_hierarchical_category)
         seq_dataset["category_id"] = seq_dataset["category_id"].apply(min_hierarchical_category)
+        if args.preprocess_method == 'kawabata_cat':
+            return seq_dataset
         # イベントID
         seq_dataset["event_id"] = seq_dataset["event_id"].apply(lambda lst: [dict_event[x] for x in lst])
         # タイムスタンプ
@@ -350,7 +352,7 @@ def parse_args(description):
                         help="Add shipper_id to category_name")
     parser.add_argument("--all_categories", action='store_true',)
     parser.add_argument("--num_added_tokens", type=int, default=0,)
-    parser.add_argument('--preprocess_method', choices=['kawabata', 'takemoto', 'ogawa'],
+    parser.add_argument('--preprocess_method', choices=['kawabata', 'takemoto', 'ogawa', 'kawabata_cat'],
                         required=True,),
     args = parser.parse_args()
     return args

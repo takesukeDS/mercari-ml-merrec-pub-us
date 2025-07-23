@@ -167,8 +167,13 @@ def preprocess_dataset(seq_dataset, args):
             lambda lst: [s.replace("bbbaaa", "") for s in lst])
 
         # 追加属性をcategory_nameに結合
-        target_cols = ['category_name', 'event_id', 'time_label', 'shipper_id',
+        if args.preprocess_method == 'kawabata_wo_shipper_none':
+            target_cols = ['category_name', 'event_id', 'time_label']
+        elif args.preprocess_method == 'kawabata':
+            target_cols = ['category_name', 'event_id', 'time_label', 'shipper_id',
                        'event_time', 'event_shipper', 'time_shipper', 'event_time_shipper']
+        else:
+            raise ValueError("Invalid preprocess method specified.")
         seq_dataset['category_name'] = seq_dataset[target_cols].apply(
             lambda row: [''.join(items) for items in zip(*row)], axis=1)
         # 以降の処理に用いる最終的なseq_dataset
@@ -352,7 +357,9 @@ def parse_args(description):
                         help="Add shipper_id to category_name")
     parser.add_argument("--all_categories", action='store_true',)
     parser.add_argument("--num_added_tokens", type=int, default=0,)
-    parser.add_argument('--preprocess_method', choices=['kawabata', 'takemoto', 'ogawa', 'kawabata_cat'],
+    parser.add_argument('--preprocess_method',
+                        choices=['kawabata', 'takemoto', 'ogawa', 'kawabata_cat',
+                                 'kawabata_wo_shipper_none', 'kawabata_wo_shipper'],
                         required=True,),
     args = parser.parse_args()
     return args
